@@ -1,11 +1,12 @@
 package config
 
 import (
-	"github.com/ilyakaznacheev/cleanenv"
 	"sync"
+
+	"github.com/ilyakaznacheev/cleanenv"
 )
 
-var configInstance *Config
+var configInstance = &Config{}
 var once sync.Once
 
 type Config struct {
