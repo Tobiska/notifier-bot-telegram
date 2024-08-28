@@ -1,5 +1,7 @@
 package models
 
+import "time"
+
 type Status string
 
 const (
@@ -11,10 +13,12 @@ const (
 	AddHardDeadline Status = "add_hard_deadline"
 )
 
-type Chat struct {
-	ChatID   int64
-	UserID   int64
-	Status   Status
-	Username string
-	Details  []Detail
+type User struct {
+	ChatID    int64
+	UserID    int64
+	Status    Status
+	Username  string
+	Details   []Detail
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }

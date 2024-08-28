@@ -7,9 +7,13 @@ import (
 	"log"
 	"notifier-bot-telegram/internal/app/handlers/fallbackCommand"
 	"notifier-bot-telegram/internal/app/handlers/fallbackText"
+	"notifier-bot-telegram/internal/app/handlers/start"
+	"notifier-bot-telegram/internal/app/repository/user"
+	"notifier-bot-telegram/internal/app/services/commands"
 	telegramConsumer "notifier-bot-telegram/internal/consumer/telegram"
 	"notifier-bot-telegram/internal/router"
 	"notifier-bot-telegram/pkg/logger"
+	"notifier-bot-telegram/pkg/sqlite"
 	"notifier-bot-telegram/pkg/utils"
 	"os/signal"
 	"syscall"
@@ -35,10 +39,22 @@ func run() error {
 		return fmt.Errorf("create telegram client error: %w", err)
 	}
 
+	db, err := sqlite.New(cfg.Dsn)
+	if err != nil {
+		return fmt.Errorf("failed connect to database: %w", err)
+	}
+	defer db.Close()
+
+	userRepository := user.New(db)
+
+	commandsService := commands.New(userRepository, telegramClient)
+
 	fallbackCommandHandler := fallbackCommand.New(telegramClient, log)
 	fallbackTextHandler := fallbackText.New(telegramClient, log)
 
 	handlerRouter := router.New(fallbackCommandHandler, fallbackTextHandler)
+	handlerRouter.RegisterCommand("/start", start.New(commandsService, log))
+
 	telegramConsumer := telegramConsumer.New(handlerRouter, telegramClient, retry)
 
 	notifyCtx, cancel := signal.NotifyContext(ctx, syscall.SIGHUP,
