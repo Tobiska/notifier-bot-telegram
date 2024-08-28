@@ -8,6 +8,7 @@ import (
 	"github.com/doug-martin/goqu/v9"
 	_ "github.com/doug-martin/goqu/v9/dialect/sqlite3"
 	"notifier-bot-telegram/internal/app/models"
+	"time"
 )
 
 var (
@@ -32,6 +33,22 @@ func (r *Repository) SaveUser(ctx context.Context, user models.User) error {
 			"status":   user.Status,
 			"username": user.Username,
 		},
+	)
+
+	sqlQuery, args, err := query.ToSQL()
+	if err != nil {
+		return fmt.Errorf("build sqlQuery query error: %w", err)
+	}
+
+	if _, err := r.db.Exec(sqlQuery, args...); err != nil {
+		return fmt.Errorf("execution error: %w", err)
+	}
+	return nil
+}
+
+func (r *Repository) UpdateStatus(ctx context.Context, chatID int64, status models.Status) error {
+	query := driver.Update(goqu.T("users")).Where(goqu.Ex{"chatID": chatID}).Set(
+		goqu.Record{"status": status, "update_at": time.Now().Local()},
 	)
 
 	sqlQuery, args, err := query.ToSQL()
