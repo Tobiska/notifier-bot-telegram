@@ -3,20 +3,25 @@ package main
 import (
 	"context"
 	"fmt"
-	"golang.org/x/sync/errgroup"
 	"log"
+	"os/signal"
+	"syscall"
+
+	"golang.org/x/sync/errgroup"
+
+	"notifier-bot-telegram/internal/app/handlers/add"
 	"notifier-bot-telegram/internal/app/handlers/fallbackCommand"
 	"notifier-bot-telegram/internal/app/handlers/fallbackText"
 	"notifier-bot-telegram/internal/app/handlers/start"
+	"notifier-bot-telegram/internal/app/repository/details"
 	"notifier-bot-telegram/internal/app/repository/user"
 	"notifier-bot-telegram/internal/app/services/commands"
 	telegramConsumer "notifier-bot-telegram/internal/consumer/telegram"
 	"notifier-bot-telegram/internal/router"
 	"notifier-bot-telegram/pkg/logger"
 	"notifier-bot-telegram/pkg/sqlite"
+	sql2 "notifier-bot-telegram/pkg/storage/sql"
 	"notifier-bot-telegram/pkg/utils"
-	"os/signal"
-	"syscall"
 
 	"notifier-bot-telegram/internal/clients/telegram"
 	"notifier-bot-telegram/internal/config"
@@ -45,15 +50,19 @@ func run() error {
 	}
 	defer db.Close()
 
-	userRepository := user.New(db)
+	sqlStorage := sql2.New(db)
 
-	commandsService := commands.New(userRepository, telegramClient)
+	userRepository := user.New(sqlStorage)
+	detailsRepository := details.New(sqlStorage)
+
+	commandsService := commands.New(userRepository, detailsRepository, telegramClient)
 
 	fallbackCommandHandler := fallbackCommand.New(telegramClient, log)
-	fallbackTextHandler := fallbackText.New(telegramClient, log)
+	fallbackTextHandler := fallbackText.New(telegramClient, commandsService, log)
 
 	handlerRouter := router.New(fallbackCommandHandler, fallbackTextHandler)
 	handlerRouter.RegisterCommand("/start", start.New(commandsService, log))
+	handlerRouter.RegisterCommand("/add", add.New(commandsService, log))
 
 	telegramConsumer := telegramConsumer.New(handlerRouter, telegramClient, retry)
 

@@ -5,21 +5,34 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
+
 	"github.com/doug-martin/goqu/v9"
 	_ "github.com/doug-martin/goqu/v9/dialect/sqlite3"
+
 	"notifier-bot-telegram/internal/app/models"
-	"time"
+	sql2 "notifier-bot-telegram/pkg/storage/sql"
 )
 
 var (
 	driver = goqu.Dialect("sqlite3")
 )
 
-type Repository struct {
-	db *sql.DB
+type database interface {
+	Begin() (*sql.Tx, error)
+	WithTx(tx sql2.Transaction) *sql2.Storage
+	BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, error)
+	ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
+	PrepareContext(ctx context.Context, query string) (*sql.Stmt, error)
+	QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error)
+	QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row
 }
 
-func New(db *sql.DB) *Repository {
+type Repository struct {
+	db database
+}
+
+func New(db database) *Repository {
 	return &Repository{
 		db: db,
 	}
@@ -40,15 +53,15 @@ func (r *Repository) SaveUser(ctx context.Context, user models.User) error {
 		return fmt.Errorf("build sqlQuery query error: %w", err)
 	}
 
-	if _, err := r.db.Exec(sqlQuery, args...); err != nil {
+	if _, err := r.db.ExecContext(ctx, sqlQuery, args...); err != nil {
 		return fmt.Errorf("execution error: %w", err)
 	}
 	return nil
 }
 
 func (r *Repository) UpdateStatus(ctx context.Context, chatID int64, status models.Status) error {
-	query := driver.Update(goqu.T("users")).Where(goqu.Ex{"chatID": chatID}).Set(
-		goqu.Record{"status": status, "update_at": time.Now().Local()},
+	query := driver.Update(goqu.T("users")).Where(goqu.Ex{"chat_id": chatID}).Set(
+		goqu.Record{"status": status, "updated_at": time.Now().Local()},
 	)
 
 	sqlQuery, args, err := query.ToSQL()
@@ -56,7 +69,7 @@ func (r *Repository) UpdateStatus(ctx context.Context, chatID int64, status mode
 		return fmt.Errorf("build sqlQuery query error: %w", err)
 	}
 
-	if _, err := r.db.Exec(sqlQuery, args...); err != nil {
+	if _, err := r.db.ExecContext(ctx, sqlQuery, args...); err != nil {
 		return fmt.Errorf("execution error: %w", err)
 	}
 	return nil
@@ -79,7 +92,7 @@ func (r *Repository) FindUser(ctx context.Context, chatID int64) (*models.User, 
 
 	u := &models.User{}
 
-	if err := r.db.QueryRow(querySQL, args...).Scan(&u.ChatID, &u.UserID, &u.Username, &u.Status, &u.CreatedAt, &u.UpdatedAt); err != nil {
+	if err := r.db.QueryRowContext(ctx, querySQL, args...).Scan(&u.ChatID, &u.UserID, &u.Username, &u.Status, &u.CreatedAt, &u.UpdatedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}

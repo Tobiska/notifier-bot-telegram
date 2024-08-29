@@ -13,7 +13,7 @@ CREATE TABLE details (
         name         VARCHAR(255), -- имя детали
         description TEXT, -- описание детали
         soft_deadline_at DATETIME, -- soft_deadline_at
-        hard_deadline_at DATETIME NOT NULL, -- hard_deadline_at
+        hard_deadline_at DATETIME, -- hard_deadline_at
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP, -- created_at
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP, -- updated_at
 
